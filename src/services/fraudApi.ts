@@ -1,5 +1,6 @@
 import type { APIError, PredictionResponse, TransactionInput } from "../types";
 import type { DatasetAnalysisResponse } from "../types/upload";
+import type { MongoUploadHistory } from "../types/history";
 import { toBackendDate, toBackendDateTime } from "../utils/backendFormat";
 
 /**
@@ -28,7 +29,7 @@ const PREDICT_URL =
 // PREDICT_URL above — the two are different deployments.
 const UPLOAD_PREDICT_URL =
   (import.meta.env.VITE_UPLOAD_API_URL as string | undefined) ||
-  "https://bank-fraud-render.onrender.com/api/predict";
+  "https://bank-fraud-db.onrender.com/api/predict";
 
 class FraudApiError extends Error implements APIError {
   code: APIError["code"];
@@ -199,6 +200,44 @@ export async function analyzeDataset(file: File): Promise<DatasetAnalysisRespons
   // an empty or missing fraud_accounts list is a legitimate "no fraud
   // found" result, not an error. Callers render that case explicitly.
   return data as DatasetAnalysisResponse;
+}
+
+export async function getUploadHistory(): Promise<MongoUploadHistory[]> {
+  let response: Response;
+
+  try {
+    response = await fetch(
+      "https://bank-fraud-db.onrender.com/api/history",
+      {
+        method: "GET",
+      }
+    );
+  } catch {
+    throw new FraudApiError(
+      "NETWORK_ERROR",
+      "Unable to reach the history service.",
+      "The request failed before receiving a response."
+    );
+  }
+
+  if (!response.ok) {
+    throw new FraudApiError(
+      "PREDICTION_FAILED",
+      "Unable to load detection history.",
+      `HTTP ${response.status}`
+    );
+  }
+
+  const data = await safeJson(response);
+
+  if (!data || data.success !== true || !Array.isArray(data.history)) {
+    throw new FraudApiError(
+      "PREDICTION_FAILED",
+      "The history service returned an unexpected response."
+    );
+  }
+
+  return data.history as MongoUploadHistory[];
 }
 
 export function isApiError(err: unknown): err is APIError {

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { getUploadHistory } from "../services/fraudApi";
 import type { PredictionResult, TransactionInput } from "../types";
 import type { DatasetAnalysisResponse } from "../types/upload";
 import { summarizeDatasetAnalysis } from "../types/upload";
@@ -60,17 +61,84 @@ interface AnalysisHistoryContextValue {
 const AnalysisHistoryContext = createContext<AnalysisHistoryContextValue | null>(null);
 
 export function AnalysisHistoryProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<StoredState>(() => loadFromStorage());
+ const [state, setState] = useState<StoredState>({
+  manualRecords: [],
+  uploadRecords: [],
+});
 
-  useEffect(() => {
+useEffect(() => {
+  async function loadUploadHistory() {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Storage can fail (quota, private browsing) — history just won't
-      // persist across reloads in that case; the current session is
-      // unaffected since state is still held in memory.
+      const history = await getUploadHistory();
+
+      const uploadRecords: UploadHistoryRecord[] = history.map((item) => {
+        const fraudAccounts = item.fraud_accounts ?? [];
+
+        const fraudProbabilities = fraudAccounts.flatMap(
+          (account) =>
+            (account.fraud_transactions ?? []).map(
+              (transaction) => transaction.fraud_probability ?? 0
+            )
+        );
+
+        const averageFraudProbability =
+          fraudProbabilities.length > 0
+            ? fraudProbabilities.reduce((sum, value) => sum + value, 0) /
+              fraudProbabilities.length
+            : 0;
+
+        const totalTransactionsAcrossFlaggedAccounts = fraudAccounts.reduce(
+          (sum, account) => sum + (account.total_transactions ?? 0),
+          0
+        );
+
+        return {
+          kind: "upload",
+          id: item.upload_id,
+          analyzedAt: item.upload_time,
+          fileName: item.file_name,
+          fileSize: 0,
+
+          response: {
+            success: true,
+            total_transactions: item.total_transactions,
+            predicted_fraud: item.predicted_fraud,
+            predicted_nonfraud: item.predicted_nonfraud,
+            fraud_accounts: fraudAccounts,
+          },
+
+          summary: {
+            totalTransactions: item.total_transactions,
+            fraudulentTransactions: item.predicted_fraud,
+            fraudulentAccounts: fraudAccounts.length,
+            nonFraudTransactions: item.predicted_nonfraud,
+            averageFraudProbability,
+            totalTransactionsAcrossFlaggedAccounts,
+          },
+        };
+      });
+
+      setState((prev) => ({
+        ...prev,
+        uploadRecords,
+      }));
+    } catch (error) {
+      console.error("Failed to load upload history:", error);
     }
-  }, [state]);
+  }
+
+  loadUploadHistory();
+}, []);
+
+  // useEffect(() => {
+  //   try {
+  //     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  //   } catch {
+  //     // Storage can fail (quota, private browsing) — history just won't
+  //     // persist across reloads in that case; the current session is
+  //     // unaffected since state is still held in memory.
+  //   }
+  // }, [state]);
 
   function addManualRecord(transaction: TransactionInput, result: PredictionResult) {
     const record: ManualHistoryRecord = {

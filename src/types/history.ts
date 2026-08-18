@@ -33,5 +33,14 @@ export interface UploadHistoryRecord {
   response: DatasetAnalysisResponse;
   summary: DatasetAnalysisSummary;
 }
+export interface MongoUploadHistory {
+  upload_id: string;
+  upload_time: string;
+  file_name: string;
+  total_transactions: number;
+  predicted_fraud: number;
+  predicted_nonfraud: number;
+  fraud_accounts: DatasetAnalysisResponse["fraud_accounts"];
+}
 
 export type HistoryRecord = ManualHistoryRecord | UploadHistoryRecord;
