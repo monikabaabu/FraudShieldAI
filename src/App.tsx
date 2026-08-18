@@ -1,0 +1,33 @@
+import { HashRouter, Routes, Route } from "react-router-dom";
+import { Header } from "./components/layout/Header";
+import { Dashboard } from "./pages/Dashboard";
+import { AnalyzeTransaction } from "./pages/AnalyzeTransaction";
+import { DetectionHistory } from "./pages/DetectionHistory";
+import { ModelInfo } from "./pages/ModelInfo";
+import { ToastProvider } from "./context/ToastContext";
+import { AnalysisHistoryProvider } from "./context/AnalysisHistoryContext";
+
+function App() {
+  return (
+    <ToastProvider>
+      <AnalysisHistoryProvider>
+        <HashRouter>
+          <div className="min-h-screen">
+            <Header />
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/analyze" element={<AnalyzeTransaction />} />
+              <Route path="/history" element={<DetectionHistory />} />
+              <Route path="/model" element={<ModelInfo />} />
+            </Routes>
+            <footer className="border-t border-ink-800 py-8 text-center text-xs text-ink-500">
+              FraudShield AI · Secure Prediction Engine · Decision-support only
+            </footer>
+          </div>
+        </HashRouter>
+      </AnalysisHistoryProvider>
+    </ToastProvider>
+  );
+}
+
+export default App;
